@@ -87,10 +87,17 @@
       <label class="minute-chip"><input type="checkbox" value="30"><span>30 分鐘</span></label>
     </div>
 
+    <div class="notice-box push-notice">
+      <b>🔔 背景推播通知（推薦）</b>：真正能在 App 背景執行、螢幕關閉時也收到通知的方式。啟用一次後，由伺服器在正確時間推送，跟這個網頁分頁有沒有開完全無關。<br>
+      <span class="ios-note">iPhone 請先用 Safari 開啟此網頁，點選「分享→加入主畫面」，改用主畫面上的圖示開啟後才能啟用（iOS 限制）。</span>
+    </div>
+    <button id="enablePushBtn">🔔 啟用背景推播並儲存</button>
+    <div id="pushStatus"></div>
+
     <div class="notice-box">
       <b>瀏覽器提醒</b>：需保持這個分頁所在的瀏覽器開啟（可切到背景），時間到會跳出系統通知；若系統通知被瀏覽器或作業系統擋掉，網頁內也會跳出提示框＋提示音當備援，但仍需分頁開著。<br>
       <b>手機/平板注意</b>：部分手機瀏覽器（尤其 Android）不支援直接跳系統通知，加上這個檔案是用「file://」本機開啟，限制更多。建議先按下方「立即測試通知」確認你的裝置到底能不能跳通知。<br>
-      <b>行事曆提醒</b>：下載 .ics 檔並匯入手機/平板的行事曆 App，即使網頁、瀏覽器都關閉，也會確實收到提醒——這是唯一保證有效的方式，建議兩者都設定。
+      <b>行事曆提醒</b>：下載 .ics 檔並匯入手機/平板的行事曆 App，即使網頁、瀏覽器都關閉，也會確實收到提醒。
     </div>
 
     <button id="testNotifBtn">🔔 立即測試通知（不用等時間到）</button>
@@ -104,6 +111,8 @@
 </div>
 
 <div id="inPageAlert" class="hidden"></div>
+
+<div id="stickyHeaderClone" class="hidden"></div>
 
 <div id="orientationHint" class="hidden">📱 建議手機以橫向使用此網頁</div>
 

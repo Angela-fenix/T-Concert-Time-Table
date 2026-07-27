@@ -282,6 +282,8 @@ function buildTable(categories){
       updateReminderBar();
     });
   });
+
+  if(typeof rebuildStickyHeaderClone === 'function') rebuildStickyHeaderClone();
 }
 
 function escapeHtml(str){
@@ -329,6 +331,8 @@ function updateReminderBar(){
 }
 document.getElementById('clearSelectionBtn').addEventListener('click', () => {
   selectedKeys.clear();
+  savedMinutesBefore = [];
+  try{ localStorage.removeItem(STORAGE_KEY); }catch(err){}
   updateReminderBar();
   // re-render current table (if visible) to uncheck boxes
   if(currentDateKey && !scheduleScreen.classList.contains('hidden')){ buildTable(DATA[currentDateKey]); }
@@ -618,3 +622,188 @@ function checkOrientationHint(){
 }
 window.addEventListener('load', checkOrientationHint);
 window.addEventListener('orientationchange', () => setTimeout(checkOrientationHint, 300));
+
+// ---------- floating header clone (keeps the header pinned while the page scrolls normally) ----------
+// Native `position: sticky` on <thead> doesn't reliably stay pinned to the viewport once its
+// ancestor also has `overflow-x: auto` for horizontal scrolling (a well-known CSS limitation),
+// and we want to keep that normal horizontal-scroll / normal page-scroll behavior as-is.
+// So instead: when the real header scrolls above the viewport top (but the table is still
+// partially visible below it), show a fixed-position clone of the header row in its place,
+// keeping column widths and horizontal scroll position in sync with the real table.
+const stickyClone = document.getElementById('stickyHeaderClone');
+let stickyCloneTableWrap = null;
+
+function rebuildStickyHeaderClone(){
+  stickyCloneTableWrap = document.querySelector('.table-wrap');
+  if(!stickyCloneTableWrap){ stickyClone.classList.add('hidden'); return; }
+  const realHeaderRow = stickyCloneTableWrap.querySelector('thead tr');
+  if(!realHeaderRow){ stickyClone.classList.add('hidden'); return; }
+
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  thead.appendChild(realHeaderRow.cloneNode(true));
+  table.appendChild(thead);
+  stickyClone.innerHTML = '';
+  stickyClone.appendChild(table);
+
+  syncStickyHeaderClone();
+}
+
+function syncStickyHeaderClone(){
+  if(!stickyCloneTableWrap) return;
+  const realThs = stickyCloneTableWrap.querySelectorAll('thead th');
+  const cloneThs = stickyClone.querySelectorAll('thead th');
+  if(realThs.length !== cloneThs.length) return;
+  realThs.forEach((th, i) => {
+    const w = th.getBoundingClientRect().width;
+    cloneThs[i].style.width = w + 'px';
+    cloneThs[i].style.minWidth = w + 'px';
+    cloneThs[i].style.maxWidth = w + 'px';
+  });
+  const rect = stickyCloneTableWrap.getBoundingClientRect();
+  stickyClone.style.width = rect.width + 'px';
+  stickyClone.style.left = rect.left + 'px';
+  stickyClone.scrollLeft = stickyCloneTableWrap.scrollLeft;
+}
+
+function updateStickyHeaderVisibility(){
+  if(!stickyCloneTableWrap || stickyCloneTableWrap.offsetParent === null){
+    stickyClone.classList.add('hidden');
+    return;
+  }
+  const rect = stickyCloneTableWrap.getBoundingClientRect();
+  const headerHeight = stickyClone.offsetHeight || 44;
+  const shouldShow = rect.top < 0 && rect.bottom > headerHeight;
+  if(shouldShow){
+    syncStickyHeaderClone();
+    stickyClone.classList.remove('hidden');
+  } else {
+    stickyClone.classList.add('hidden');
+  }
+}
+
+window.addEventListener('scroll', updateStickyHeaderVisibility, { passive: true });
+window.addEventListener('resize', () => { syncStickyHeaderClone(); updateStickyHeaderVisibility(); });
+document.querySelector('.table-wrap') && document.querySelector('.table-wrap').addEventListener('scroll', () => {
+  if(stickyCloneTableWrap) stickyClone.scrollLeft = stickyCloneTableWrap.scrollLeft;
+});
+// re-bind the table-wrap scroll listener each time the schedule screen is (re)shown, since the
+// element inside it doesn't change but this keeps things simple and safe to call repeatedly
+const _origShowSchedule = showSchedule;
+showSchedule = function(dateKey){
+  _origShowSchedule(dateKey);
+  const wrap = document.querySelector('.table-wrap');
+  if(wrap && !wrap.dataset.stickyBound){
+    wrap.dataset.stickyBound = '1';
+    wrap.addEventListener('scroll', () => { if(stickyCloneTableWrap) stickyClone.scrollLeft = wrap.scrollLeft; });
+  }
+  setTimeout(updateStickyHeaderVisibility, 50);
+};
+
+// ---------- background push notifications (works even backgrounded / screen off) ----------
+// Requires being served over HTTPS (e.g. the Render deployment) — Service Workers don't run
+// at all over a plain file:// page, so this section quietly no-ops in that case.
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+function getDeviceId(){
+  let id = null;
+  try{ id = localStorage.getItem('oundongxi_device_id'); }catch(err){}
+  if(!id){
+    id = 'dev-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+    try{ localStorage.setItem('oundongxi_device_id', id); }catch(err){}
+  }
+  return id;
+}
+
+function pushSupported(){
+  return 'serviceWorker' in navigator && 'PushManager' in window && window.isSecureContext;
+}
+
+async function ensurePushSubscription(){
+  if(!pushSupported()) return null;
+  const reg = await navigator.serviceWorker.register('/sw.js');
+  await navigator.serviceWorker.ready;
+
+  let sub = await reg.pushManager.getSubscription();
+  if(!sub){
+    const res = await fetch('/api/vapid-public-key');
+    const { publicKey } = await res.json();
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    });
+  }
+
+  await fetch('/api/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId: getDeviceId(), subscription: sub }),
+  });
+  return sub;
+}
+
+async function syncPushReminders(minutes){
+  const items = Array.from(selectedKeys).map(k => ({ key: k, item: eventRegistry[k] })).filter(x => x.item);
+  const reminders = [];
+  items.forEach(({key, item}) => {
+    const startDate = getEffectiveStartDate(item, key);
+    const firstLine = item.text.split('\n')[0];
+    minutes.forEach(min => {
+      const triggerAt = startDate.getTime() - min * 60000;
+      reminders.push({
+        key: `${key}::${min}`,
+        title: `⏰ ${min} 分鐘後開始`,
+        body: `${item.cat}｜${item.start} ${firstLine}`,
+        triggerAt,
+      });
+    });
+  });
+  const res = await fetch('/api/reminders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId: getDeviceId(), reminders }),
+  });
+  return res.json();
+}
+
+const enablePushBtn = document.getElementById('enablePushBtn');
+const pushStatus = document.getElementById('pushStatus');
+
+if(enablePushBtn){
+  if(!pushSupported()){
+    enablePushBtn.disabled = true;
+    pushStatus.textContent = window.isSecureContext
+      ? '此瀏覽器不支援背景推播通知'
+      : '需透過 https 網址開啟才能使用背景推播（本機檔案無法使用這項功能）';
+  }
+
+  enablePushBtn.addEventListener('click', async () => {
+    const minutes = getCheckedMinutes();
+    if(selectedKeys.size === 0){ pushStatus.textContent = '請先勾選至少一個場次'; return; }
+    if(minutes.length === 0){ pushStatus.textContent = '請至少選擇一個提前提醒時間'; return; }
+
+    enablePushBtn.disabled = true;
+    pushStatus.textContent = '啟用中…';
+    try{
+      const perm = await Notification.requestPermission();
+      if(perm !== 'granted'){
+        pushStatus.textContent = '通知權限被拒絕，無法啟用背景推播。';
+        enablePushBtn.disabled = false;
+        return;
+      }
+      await ensurePushSubscription();
+      const result = await syncPushReminders(minutes);
+      savedMinutesBefore = minutes;
+      pushStatus.textContent = `背景推播已啟用！已排程 ${result.count ?? minutes.length * selectedKeys.size} 筆提醒，就算把 App 切到背景或關螢幕也會收到。`;
+    }catch(err){
+      pushStatus.textContent = '啟用失敗：' + err.message;
+    }
+    enablePushBtn.disabled = false;
+  });
+}
