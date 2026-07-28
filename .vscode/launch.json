@@ -5,10 +5,26 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "type": "node-terminal",
+            "request": "launch",
+            "name": "npm start",
+            "command": "npm.cmd start"
+        },
+        {
             "type": "pwa-chrome",
             "request": "launch",
-            "name": "Launch index.html",
-            "file": "${workspaceFolder}/index.html"
+            "name": "Chrome",
+            "url": "http://localhost:3000",
+            "webRoot": "${workspaceFolder}"
+        }
+    ],
+    "compounds": [
+        {
+            "name": "啟動網站",
+            "configurations": [
+                "npm start",
+                "Chrome"
+            ]
         }
     ]
 }

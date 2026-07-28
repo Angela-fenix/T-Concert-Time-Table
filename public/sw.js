@@ -17,6 +17,9 @@ self.addEventListener('push', (event) => {
       icon: undefined,
       badge: undefined,
       tag: data.title + data.body, // collapse duplicate pushes for the same reminder
+      vibrate: [500, 250, 500, 250, 500, 250, 500], // long, unmistakable vibration pattern
+      silent: false, // explicit: let the device play its default notification sound
+      requireInteraction: true, // stays on screen until the person dismisses it, instead of auto-disappearing
     })
   );
 });

@@ -95,22 +95,12 @@
     <div id="pushStatus"></div>
 
     <div class="notice-box">
-      <b>瀏覽器提醒</b>：需保持這個分頁所在的瀏覽器開啟（可切到背景），時間到會跳出系統通知；若系統通知被瀏覽器或作業系統擋掉，網頁內也會跳出提示框＋提示音當備援，但仍需分頁開著。<br>
-      <b>手機/平板注意</b>：部分手機瀏覽器（尤其 Android）不支援直接跳系統通知，加上這個檔案是用「file://」本機開啟，限制更多。建議先按下方「立即測試通知」確認你的裝置到底能不能跳通知。<br>
-      <b>行事曆提醒</b>：下載 .ics 檔並匯入手機/平板的行事曆 App，即使網頁、瀏覽器都關閉，也會確實收到提醒。
+      <b>行事曆提醒</b>：下載 .ics 檔加入手機/平板的行事曆 App，由系統本身管理提醒，即使網頁、瀏覽器都關閉也會確實收到，建議跟背景推播一起設定，雙重保險。
     </div>
-
-    <button id="testNotifBtn">🔔 立即測試通知（不用等時間到）</button>
-
-    <div class="reminder-actions">
-      <button id="saveReminderBtn">儲存（開啟瀏覽器提醒）</button>
-      <button id="downloadIcsBtn">下載日曆提醒檔 (.ics)</button>
-      <div id="reminderStatus"></div>
-    </div>
+    <button id="downloadIcsBtn">下載日曆提醒檔 (.ics)</button>
+    <div id="reminderStatus"></div>
   </div>
 </div>
-
-<div id="inPageAlert" class="hidden"></div>
 
 <div id="stickyHeaderClone" class="hidden"></div>
 

@@ -10,6 +10,8 @@
 // like this, but read the README section on Render's disk persistence before
 // relying on it long-term.
 
+require('dotenv').config();
+
 const express = require('express');
 const compression = require('compression');
 const webpush = require('web-push');

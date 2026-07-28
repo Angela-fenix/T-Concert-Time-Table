@@ -116,10 +116,6 @@ function loadSavedReminders(){
     const saved = JSON.parse(raw);
     (saved.keys || []).forEach(k => { if(eventRegistry[k]) selectedKeys.add(k); });
     savedMinutesBefore = saved.minutes || [];
-    // re-arm browser notifications for anything still in the future
-    if(Notification && Notification.permission === 'granted'){
-      scheduleAllSelectedNotifications(savedMinutesBefore);
-    }
   }catch(err){ /* ignore corrupt storage */ }
 }
 if(typeof localStorage !== 'undefined'){
@@ -362,6 +358,11 @@ function openReminderModal(){
     const lbl = dateLabel(item.dateKey);
     const firstLine = item.text.split('\n')[0];
     if(debugMode){
+      // default to "right now" so you can immediately test without doing date math yourself —
+      // once you've touched a field, we remember whatever you set instead of resetting it
+      if(!debugOverrides[key]){
+        debugOverrides[key] = toDatetimeLocalValue(new Date());
+      }
       const effective = getEffectiveStartDate(item, key);
       return `<li><span class="sl-what">${escapeHtml(item.cat)} · ${escapeHtml(firstLine)}<br><span style="color:var(--ink-faint)">原時間 ${lbl.md} ${item.start}</span>
         <div class="debug-preview" data-preview-for="${key}"></div></span>
@@ -425,116 +426,6 @@ function getCheckedMinutes(){
   return Array.from(document.querySelectorAll('#minuteOptions input[type=checkbox]:checked')).map(cb => Number(cb.value));
 }
 
-// setTimeout can't handle delays over ~24.8 days in one call — chain it so long waits still work
-function longTimeout(fn, delay){
-  const MAX = 2147483647;
-  if(delay > MAX){ setTimeout(() => longTimeout(fn, delay - MAX), MAX); }
-  else{ setTimeout(fn, Math.max(delay, 0)); }
-}
-
-const inPageAlert = document.getElementById('inPageAlert');
-let inPageAlertTimer = null;
-
-function beep(){
-  try{
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.frequency.value = 880;
-    gain.gain.setValueAtTime(0.15, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-    osc.start(); osc.stop(ctx.currentTime + 0.5);
-  }catch(err){ /* audio not available, ignore */ }
-}
-
-function showInPageAlert(title, body){
-  inPageAlert.innerHTML = `<span class="icon">⏰</span><div class="txt"><b>${escapeHtml(title)}</b><span>${escapeHtml(body)}</span></div><button aria-label="關閉">✕</button>`;
-  inPageAlert.querySelector('button').addEventListener('click', () => inPageAlert.classList.add('hidden'));
-  inPageAlert.classList.remove('hidden');
-  beep();
-  clearTimeout(inPageAlertTimer);
-  inPageAlertTimer = setTimeout(() => inPageAlert.classList.add('hidden'), 15000);
-}
-
-function fireReminder(item, minutesBefore){
-  const firstLine = item.text.split('\n')[0];
-  const title = `⏰ ${minutesBefore} 分鐘後開始`;
-  const body = `${item.cat}｜${item.start} ${firstLine}`;
-  // always show the in-page fallback — this is the only guaranteed-visible path while the tab is open
-  showInPageAlert(title, body);
-  // additionally try a real OS notification; many mobile browsers throw here, which is fine, it's a bonus
-  if(typeof Notification !== 'undefined' && Notification.permission === 'granted'){
-    try{ new Notification(title, { body }); }catch(err){ /* not supported on this browser, in-page alert already shown */ }
-  }
-}
-
-document.getElementById('testNotifBtn').addEventListener('click', () => {
-  const supportsNotification = typeof Notification !== 'undefined';
-  const permission = supportsNotification ? Notification.permission : 'unsupported';
-  fireReminder({ cat: '測試', text: '這是一則測試提醒', start: 'now' }, 0);
-  if(!supportsNotification){
-    reminderStatus.textContent = '這個瀏覽器不支援系統通知，請改用日曆提醒檔。';
-  } else if(permission !== 'granted'){
-    reminderStatus.textContent = `目前通知權限為「${permission}」，系統通知可能不會出現，但網頁內提示應該看得到。`;
-  } else {
-    reminderStatus.textContent = '已送出測試——有看到網頁內的提示框嗎？系統通知也應該同時跳出。';
-  }
-});
-
-function scheduleAllSelectedNotifications(minutes){
-  const now = new Date();
-  const scheduled = [];
-  selectedKeys.forEach(key => {
-    const item = eventRegistry[key];
-    if(!item) return;
-    const startDate = getEffectiveStartDate(item, key);
-    minutes.forEach(min => {
-      const target = new Date(startDate.getTime() - min * 60000);
-      const delay = target.getTime() - now.getTime();
-      if(delay > 0){
-        longTimeout(() => fireReminder(item, min), delay);
-        scheduled.push({ target, item, min });
-      }
-    });
-  });
-  return scheduled;
-}
-
-document.getElementById('saveReminderBtn').addEventListener('click', () => {
-  const minutes = getCheckedMinutes();
-  if(selectedKeys.size === 0){
-    reminderStatus.textContent = '請先勾選至少一個場次';
-    return;
-  }
-  if(minutes.length === 0){
-    reminderStatus.textContent = '請至少選擇一個提前提醒時間';
-    return;
-  }
-  savedMinutesBefore = minutes;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ keys: Array.from(selectedKeys), minutes }));
-
-  if(typeof Notification === 'undefined'){
-    reminderStatus.textContent = '此瀏覽器不支援通知，建議改用下方日曆提醒檔';
-    return;
-  }
-  Notification.requestPermission().then(perm => {
-    if(perm === 'granted'){
-      const scheduled = scheduleAllSelectedNotifications(minutes);
-      if(scheduled.length === 0){
-        reminderStatus.textContent = '已儲存，但沒有任何一筆提醒時間落在未來（可能都已經過了）。';
-      } else {
-        scheduled.sort((a,b) => a.target - b.target);
-        const next = scheduled[0].target;
-        const nextStr = `${next.getMonth()+1}/${next.getDate()} ${String(next.getHours()).padStart(2,'0')}:${String(next.getMinutes()).padStart(2,'0')}:${String(next.getSeconds()).padStart(2,'0')}`;
-        reminderStatus.textContent = `已排程 ${scheduled.length} 筆提醒，最近一筆將在 ${nextStr} 觸發。請保持分頁開啟。`;
-      }
-    } else {
-      reminderStatus.textContent = '通知權限被拒絕，請改用下方日曆提醒檔（更保險）。';
-    }
-  });
-});
-
 // ---------- .ics calendar export (works even with the browser fully closed) ----------
 function pad2(n){ return String(n).padStart(2, '0'); }
 
@@ -594,16 +485,26 @@ document.getElementById('downloadIcsBtn').addEventListener('click', () => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ keys: Array.from(selectedKeys), minutes }));
 
   const ics = buildIcsContent(minutes);
-  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = '偶運會提醒.ics';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  reminderStatus.textContent = '已下載！匯入手機/平板的行事曆 App 即可，即使關閉網頁也會提醒。';
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+
+  if(isIOS){
+    // iOS Safari: navigating straight to a data: URI with the calendar MIME type pops the
+    // "Add All Events" screen immediately — skips the separate "go find the downloaded file" step
+    const dataUri = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(ics);
+    window.location.href = dataUri;
+    reminderStatus.textContent = '請在跳出的畫面點「加入全部」完成加入行事曆。';
+  } else {
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '偶運會提醒.ics';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    reminderStatus.textContent = '已下載！點開下載的檔案，通常會直接跳出加入行事曆的畫面。';
+  }
 });
 
 // ---------- portrait/landscape hint (mobile) ----------
