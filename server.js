@@ -55,12 +55,16 @@ app.use(compression());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
-    // sw.js and index.html must always be re-checked so updates take effect immediately;
-    // everything else (css/js/image) is safe to cache aggressively since filenames don't change.
-    if (filePath.endsWith('sw.js') || filePath.endsWith('index.html')) {
-      res.setHeader('Cache-Control', 'no-cache');
-    } else {
+    // Only truly static, rarely-changing assets (images) get a long cache. Everything that's
+    // actual application code (html/css/js/sw.js) uses `no-cache`, which does NOT mean "don't
+    // cache" — it means "always ask the server first". Express's static middleware already sets
+    // ETag/Last-Modified, so that check is a cheap 304 response when nothing changed, and only
+    // re-downloads the full file when it actually did. This avoids the trap of someone's browser
+    // silently running week-old code after a deploy.
+    if (/\.(png|jpe?g|gif|webp|svg|ico)$/i.test(filePath)) {
       res.setHeader('Cache-Control', 'public, max-age=604800'); // 7 days
+    } else {
+      res.setHeader('Cache-Control', 'no-cache');
     }
   },
 }));
@@ -136,6 +140,12 @@ app.get('/api/tick', async (req, res) => {
   res.json({ ok: true, sent });
 });
 
+// lightweight health check — used by the self-ping keep-alive below, and can also be
+// pointed at by an external uptime monitor if you want one
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, time: new Date().toISOString() });
+});
+
 // ---------- the actual scheduler ----------
 async function runScheduler() {
   const now = Date.now();
@@ -180,3 +190,40 @@ setInterval(() => { runScheduler().catch(err => console.error(err)); }, 30 * 100
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
+
+// --- Render 防止休眠 --- //
+// Only matters on Render itself (RENDER=true is set automatically by Render's environment) —
+// running this locally or elsewhere would just be pinging yourself for no reason.
+if (process.env.RENDER === 'true') {
+  const SELF_URL = process.env.RENDER_EXTERNAL_URL;
+
+  if (!SELF_URL) {
+    console.warn('⚠️ RENDER_EXTERNAL_URL 未設定，保活機制無法啟用（Render 通常會自動提供這個變數）');
+  } else {
+    const interval = 14 * 60 * 1000; // 每14分鐘 ping 一次（免費方案 15 分鐘無流量就會睡著）
+    console.log(`🕓 Render 保活功能啟用（09:00~23:59），每 ${interval / 60000} 分鐘檢查一次`);
+
+    setInterval(async () => {
+      // 取得台灣時間（UTC+8）
+      const now = new Date();
+      const taiwanHour = (now.getUTCHours() + 8) % 24;
+      const taiwanMinute = now.getUTCMinutes();
+
+      // 只在 09:00~23:59 保活，凌晨 0~8 點不觸發（省得整晚白白耗掉免費方案的執行時數）
+      if (taiwanHour >= 9) {
+        try {
+          const res = await fetch(`${SELF_URL}/api/health`);
+          if (res.ok) {
+            console.log(`✅ 保活成功（台灣時間 ${taiwanHour}:${taiwanMinute.toString().padStart(2, '0')}）`);
+          } else {
+            console.warn('⚠️ 保活請求失敗:', res.status);
+          }
+        } catch (err) {
+          console.warn('⚠️ 保活錯誤:', err.message);
+        }
+      } else {
+        console.log(`🌙 非保活時段（台灣時間 ${taiwanHour}:${taiwanMinute.toString().padStart(2, '0')}），略過`);
+      }
+    }, interval);
+  }
+}

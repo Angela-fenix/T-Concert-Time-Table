@@ -314,7 +314,7 @@ const mapModalOverlay = document.getElementById('mapModalOverlay');
 document.getElementById('mapBtn').addEventListener('click', () => mapModalOverlay.classList.remove('hidden'));
 document.getElementById('mapModalClose').addEventListener('click', () => mapModalOverlay.classList.add('hidden'));
 mapModalOverlay.addEventListener('click', (e) => { if(e.target === mapModalOverlay) mapModalOverlay.classList.add('hidden'); });
-document.addEventListener('keydown', (e) => { if(e.key === 'Escape'){ modalOverlay.classList.add('hidden'); reminderModalOverlay.classList.add('hidden'); document.getElementById('mapModalOverlay').classList.add('hidden'); } });
+document.addEventListener('keydown', (e) => { if(e.key === 'Escape'){ modalOverlay.classList.add('hidden'); reminderModalOverlay.classList.add('hidden'); document.getElementById('mapModalOverlay').classList.add('hidden'); const sm = document.getElementById('scheduledModalOverlay'); if(sm) sm.classList.add('hidden'); } });
 
 // ---------- reminder floating bar ----------
 const reminderBar = document.getElementById('reminderBar');
@@ -707,4 +707,53 @@ if(enablePushBtn){
     }
     enablePushBtn.disabled = false;
   });
+}
+
+// ---------- view currently-scheduled push reminders (queries the server directly) ----------
+const scheduledModalOverlay = document.getElementById('scheduledModalOverlay');
+const scheduledList = document.getElementById('scheduledList');
+const viewScheduledBtn = document.getElementById('viewScheduledBtn');
+const refreshScheduledBtn = document.getElementById('refreshScheduledBtn');
+
+function formatReminderTime(ms){
+  const d = new Date(ms);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+async function loadScheduledReminders(){
+  scheduledList.innerHTML = '<li><span class="sl-what">載入中…</span></li>';
+  try{
+    const res = await fetch(`/api/reminders?deviceId=${encodeURIComponent(getDeviceId())}`);
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const { reminders } = await res.json();
+
+    if(!reminders || reminders.length === 0){
+      scheduledList.innerHTML = '<li><div class="scheduled-empty">這台裝置目前在伺服器上沒有任何已排程的推播提醒。</div></li>';
+      return;
+    }
+
+    reminders.sort((a,b) => a.triggerAt - b.triggerAt);
+    scheduledList.innerHTML = reminders.map(r => {
+      const statusCls = r.sent ? 'sent' : 'pending';
+      const statusText = r.sent ? '已發送' : '等待中';
+      return `<li>
+        <span class="sl-what">${escapeHtml(r.title)}<br><span style="color:var(--ink-faint)">${escapeHtml(r.body)}</span></span>
+        <span class="sl-when">${formatReminderTime(r.triggerAt)}</span>
+        <span class="sl-status ${statusCls}">${statusText}</span>
+      </li>`;
+    }).join('');
+  }catch(err){
+    scheduledList.innerHTML = `<li><div class="scheduled-error">查詢失敗：${escapeHtml(err.message)}<br>（如果還沒按過「啟用背景推播並儲存」，伺服器上本來就還沒有資料）</div></li>`;
+  }
+}
+
+if(viewScheduledBtn){
+  viewScheduledBtn.addEventListener('click', () => {
+    scheduledModalOverlay.classList.remove('hidden');
+    loadScheduledReminders();
+  });
+  document.getElementById('scheduledModalClose').addEventListener('click', () => scheduledModalOverlay.classList.add('hidden'));
+  scheduledModalOverlay.addEventListener('click', (e) => { if(e.target === scheduledModalOverlay) scheduledModalOverlay.classList.add('hidden'); });
+  refreshScheduledBtn.addEventListener('click', loadScheduledReminders);
 }

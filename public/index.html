@@ -35,8 +35,8 @@
   <div class="footnotes">
     <p>※ 手環．福利兌換：11:00~18:00</p>
     <p>※ 市集遊樂園：11:00~19:00</p>
-    <p>※ 麻將賓果挑戰：13:00~20:30</p>
     <p>※ 官方限定周邊：12:00~20:00</p>
+    <p>※ 麻將賓果挑戰：13:00~20:30</p>    
   </div>
   <div class="credit-badge credit-badge--footer">製作 By 救火隊 昕</div>
 </section>
@@ -93,12 +93,26 @@
     </div>
     <button id="enablePushBtn">🔔 啟用背景推播並儲存</button>
     <div id="pushStatus"></div>
+    <button id="viewScheduledBtn" class="link-btn">📋 查看目前已排程的推播提醒</button>
 
     <div class="notice-box">
       <b>行事曆提醒</b>：下載 .ics 檔加入手機/平板的行事曆 App，由系統本身管理提醒，即使網頁、瀏覽器都關閉也會確實收到，建議跟背景推播一起設定，雙重保險。
     </div>
     <button id="downloadIcsBtn">下載日曆提醒檔 (.ics)</button>
     <div id="reminderStatus"></div>
+  </div>
+</div>
+
+<!-- view scheduled push reminders modal -->
+<div id="scheduledModalOverlay" class="hidden">
+  <div id="scheduledModalCard" role="dialog" aria-modal="true">
+    <button id="scheduledModalClose" aria-label="關閉">✕</button>
+    <h2 class="display">已排程的推播提醒</h2>
+    <p class="sub">直接向伺服器查詢目前這台裝置實際存了哪些提醒，可以用來核對時間對不對</p>
+    <div id="scheduledListWrap">
+      <ul class="selected-list" id="scheduledList"></ul>
+    </div>
+    <button id="refreshScheduledBtn">🔄 重新整理</button>
   </div>
 </div>
 

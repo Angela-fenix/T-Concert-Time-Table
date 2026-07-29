@@ -66,6 +66,16 @@
 
 ## 本機測試
 
+已經幫你準備好 `.vscode/launch.json`，裡面直接帶了金鑰，在 VS Code 打開這個資料夾後按 **F5**
+（或側邊「Run and Debug」→ 選 "Run Server (local)" → 播放鍵）就能啟動，開瀏覽器連到
+`http://localhost:3000` 即可。
+
+> ⚠️ **`launch.json` 裡面直接寫了 VAPID 私鑰**，方便你本機一鍵執行。我已經把它加進
+> `.gitignore`，如果之後要把這個專案推到「公開」的 GitHub repo，請確認 `.vscode/launch.json`
+> 真的沒有被一起推上去，不然私鑰會外流。如果是私人 repo 則沒差。
+
+也可以不用 VS Code 的除錯功能，改用終端機手動下指令啟動：
+
 ```bash
 npm install
 VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:you@example.com npm start

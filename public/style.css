@@ -297,6 +297,48 @@
   .selected-list li:last-child{ border-bottom:none; }
   .selected-list .sl-when{ color: var(--gold); font-family:'JetBrains Mono',monospace; white-space:nowrap; font-size:11.5px; }
   .selected-list .sl-what{ color: var(--ink-dim); flex:1; }
+
+  .link-btn{
+    display:block; width:100%; background:none; border:none;
+    color: var(--ink-faint); font-size:12px; text-decoration:underline;
+    text-align:center; padding: 8px 0 16px; margin-top:-4px;
+  }
+  .link-btn:hover{ color: var(--ink-dim); }
+
+  #scheduledModalOverlay{
+    position:fixed; inset:0; background: rgba(10,8,20,.75); backdrop-filter: blur(3px);
+    display:flex; align-items:center; justify-content:center; padding:20px; z-index:65;
+  }
+  #scheduledModalCard{
+    width: min(480px, 100%); max-height: 84vh; overflow-y:auto;
+    background: linear-gradient(165deg, var(--panel), var(--bg-soft));
+    border: 1px solid var(--panel-line); border-radius: 20px;
+    padding: 26px 26px 24px; position:relative;
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+    animation: pop .18s ease;
+  }
+  #scheduledModalCard h2{ font-family:'Baloo 2',sans-serif; font-size:22px; margin: 0 0 4px; }
+  #scheduledModalCard .sub{ color: var(--ink-dim); font-size:13px; margin-bottom:16px; }
+  #scheduledModalClose{
+    position:absolute; top:14px; right:14px; background:none; border:none;
+    color:var(--ink-faint); font-size:20px; width:30px; height:30px; border-radius:50%;
+  }
+  #scheduledModalClose:hover{ background: var(--panel-line); color: var(--ink); }
+  #scheduledListWrap{ max-height: 48vh; overflow-y:auto; margin-bottom:16px; }
+  #scheduledListWrap .selected-list{ max-height:none; }
+  .selected-list .sl-status{
+    font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:999px;
+    white-space:nowrap; margin-left:8px;
+  }
+  .sl-status.pending{ background: rgba(78,209,110,.15); color:#7de89a; }
+  .sl-status.sent{ background: rgba(139,132,171,.15); color: var(--ink-faint); }
+  #refreshScheduledBtn{
+    width:100%; background: var(--panel); border:1px solid var(--panel-line); color:var(--ink);
+    border-radius:12px; padding:11px; font-size:13px; font-weight:600;
+  }
+  #refreshScheduledBtn:hover{ border-color: var(--gold); color: var(--gold); }
+  .scheduled-empty{ text-align:center; color: var(--ink-faint); font-size:13px; padding: 20px 0; }
+  .scheduled-error{ text-align:center; color:#ff9b9b; font-size:13px; padding: 20px 0; }
   .debug-preview{
     font-family:'JetBrains Mono',monospace; font-size:11px; margin-top:4px;
     display:flex; flex-wrap:wrap; gap:6px;
