@@ -642,6 +642,35 @@ function pushSupported(){
   return 'serviceWorker' in navigator && 'PushManager' in window && window.isSecureContext;
 }
 
+function isIOSDevice(){
+  return /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    // iPadOS 13+ reports itself as "Macintosh" but still has touch support, unlike a real Mac
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function isStandaloneDisplay(){
+  return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+}
+
+// gives a specific, actionable reason instead of a generic "not supported" — the actual cause
+// on iPhone is almost always "opened via a Safari tab instead of the home-screen icon", not a
+// genuine lack of support
+function diagnosePushSupport(){
+  if(!window.isSecureContext){
+    return '需透過 https 網址開啟才能使用背景推播（本機檔案無法使用這項功能）';
+  }
+  if('serviceWorker' in navigator && 'PushManager' in window){
+    return null; // fully supported, nothing to report
+  }
+  if(isIOSDevice() && !isStandaloneDisplay()){
+    return '偵測到你是用 Safari 分頁開啟的，不是從主畫面圖示開啟。iPhone 一定要先「加入主畫面」，然後關掉這個分頁，改用主畫面上新出現的圖示重新開啟，才能啟用背景推播。';
+  }
+  if(isIOSDevice()){
+    return '此裝置不支援背景推播，iPhone 需要 iOS 16.4（含）以上版本才有支援，可以到「設定→一般→關於本機」確認目前的系統版本。';
+  }
+  return '此瀏覽器不支援背景推播通知';
+}
+
 async function ensurePushSubscription(){
   if(!pushSupported()) return null;
   const reg = await navigator.serviceWorker.register('/sw.js');
@@ -693,11 +722,10 @@ const enablePushBtn = document.getElementById('enablePushBtn');
 const pushStatus = document.getElementById('pushStatus');
 
 if(enablePushBtn){
-  if(!pushSupported()){
+  const reason = diagnosePushSupport();
+  if(reason){
     enablePushBtn.disabled = true;
-    pushStatus.textContent = window.isSecureContext
-      ? '此瀏覽器不支援背景推播通知'
-      : '需透過 https 網址開啟才能使用背景推播（本機檔案無法使用這項功能）';
+    pushStatus.textContent = reason;
   }
 
   enablePushBtn.addEventListener('click', async () => {
