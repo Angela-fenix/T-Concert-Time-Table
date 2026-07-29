@@ -109,10 +109,25 @@ function getEffectiveStartDate(item, key){
   return new Date(y, m - 1, d, hh, mm, 0, 0);
 }
 
+// events pre-checked by default for first-time visitors (until they save their own selection)
+const DEFAULT_SELECTED_KEYS = [
+  '20260801::表演舞台::19:20::20:35',   // 8/1 表演舞台 場次D
+  '20260801::福利VIP::19:10::20:05',    // 8/1 福利VIP 場次D 入座時間
+  '20260801::水槍挑戰::12:10::12:20',   // 8/1 水槍挑戰 MAX / 家齊
+  '20260801::水槍挑戰::14:00::14:20',   // 8/1 水槍挑戰 浦洋 / 峻廷
+  '20260802::表演舞台::19:35::20:45',   // 8/2 表演舞台 場次H
+  '20260802::福利VIP::19:25::20:15',    // 8/2 福利VIP 場次H 入座時間
+  '20260802::握手會::16:00::17:00',     // 8/2 握手會 FEniX / HAKU
+];
+
 function loadSavedReminders(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
-    if(!raw) return;
+    if(!raw){
+      // no saved state yet on this device — start from the built-in defaults
+      DEFAULT_SELECTED_KEYS.forEach(k => { if(eventRegistry[k]) selectedKeys.add(k); });
+      return;
+    }
     const saved = JSON.parse(raw);
     (saved.keys || []).forEach(k => { if(eventRegistry[k]) selectedKeys.add(k); });
     savedMinutesBefore = saved.minutes || [];
@@ -737,12 +752,33 @@ async function loadScheduledReminders(){
     scheduledList.innerHTML = reminders.map(r => {
       const statusCls = r.sent ? 'sent' : 'pending';
       const statusText = r.sent ? '已發送' : '等待中';
+      const deleteBtn = r.sent ? '' : `<button class="sl-delete" data-id="${escapeAttr(r.id)}" aria-label="刪除這則提醒">🗑</button>`;
       return `<li>
         <span class="sl-what">${escapeHtml(r.title)}<br><span style="color:var(--ink-faint)">${escapeHtml(r.body)}</span></span>
         <span class="sl-when">${formatReminderTime(r.triggerAt)}</span>
         <span class="sl-status ${statusCls}">${statusText}</span>
+        ${deleteBtn}
       </li>`;
     }).join('');
+
+    scheduledList.querySelectorAll('.sl-delete').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        btn.disabled = true;
+        try{
+          const res = await fetch(`/api/reminders/${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ deviceId: getDeviceId() }),
+          });
+          if(!res.ok) throw new Error('HTTP ' + res.status);
+          await loadScheduledReminders();
+        }catch(err){
+          btn.disabled = false;
+          alert('刪除失敗：' + err.message);
+        }
+      });
+    });
   }catch(err){
     scheduledList.innerHTML = `<li><div class="scheduled-error">查詢失敗：${escapeHtml(err.message)}<br>（如果還沒按過「啟用背景推播並儲存」，伺服器上本來就還沒有資料）</div></li>`;
   }

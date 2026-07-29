@@ -332,6 +332,12 @@
   }
   .sl-status.pending{ background: rgba(78,209,110,.15); color:#7de89a; }
   .sl-status.sent{ background: rgba(139,132,171,.15); color: var(--ink-faint); }
+  .sl-delete{
+    background:none; border:none; color: var(--ink-faint); font-size:14px;
+    padding: 2px 4px; border-radius:6px; margin-left:4px; flex-shrink:0;
+  }
+  .sl-delete:hover{ background: rgba(255,90,90,.15); color:#ff9b9b; }
+  .sl-delete:disabled{ opacity:.4; }
   #refreshScheduledBtn{
     width:100%; background: var(--panel); border:1px solid var(--panel-line); color:var(--ink);
     border-radius:12px; padding:11px; font-size:13px; font-weight:600;

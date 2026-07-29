@@ -133,6 +133,17 @@ app.delete('/api/reminders', (req, res) => {
   res.json({ ok: true });
 });
 
+// delete a single reminder by id — used by the "查看已排程的推播提醒" list so a specific
+// pending item can be removed without wiping out everything else
+app.delete('/api/reminders/:id', (req, res) => {
+  const { id } = req.params;
+  const { deviceId } = req.body || {};
+  const before = db.reminders.length;
+  db.reminders = db.reminders.filter(r => !(r.id === id && r.deviceId === deviceId));
+  persist();
+  res.json({ ok: true, deleted: before - db.reminders.length });
+});
+
 // keep-alive endpoint for external cron pingers (see README) — also doubles as
 // a manual "check now" trigger, harmless to call anytime
 app.get('/api/tick', async (req, res) => {
